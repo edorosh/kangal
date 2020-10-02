@@ -81,6 +81,11 @@ func (p *Proxy) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Find the old load test with the same data
 	labeledLoadTests, err := p.kubeClient.GetLoadTestsByLabel(ctx, loadTest)
+	if err != nil {
+		logger.Error("Could not count active load tests with given hash", zap.Error(err))
+		render.Render(w, r, cHttp.ErrResponse(http.StatusInternalServerError, "Could not count active load tests with given hash"))
+		return
+	}
 
 	if len(labeledLoadTests.Items) > 0 {
 

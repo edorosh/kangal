@@ -25,12 +25,6 @@ import (
 )
 
 const shortDuration = 1 * time.Millisecond // a reasonable duration to block in an example
-var (
-	loadTest     = &apisLoadTestV1.LoadTest{}
-	loadTestList = &apisLoadTestV1.LoadTestList{}
-	kubeClientSet     = fake.NewSimpleClientset()
-	loadtestClientSet = fakeClientset.NewSimpleClientset()
-)
 
 func TestHTTPValidator(t *testing.T) {
 	for _, tt := range []struct {
@@ -202,7 +196,12 @@ func TestProxyCreate(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			var logger = zaptest.NewLogger(t)
+			var (
+				loadTest          = &apisLoadTestV1.LoadTest{}
+				kubeClientSet     = fake.NewSimpleClientset()
+				loadtestClientSet = fakeClientset.NewSimpleClientset()
+				logger            = zaptest.NewLogger(t)
+			)
 
 			loadtestClientSet.Fake.PrependReactor("create", "loadtests", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 				return true, loadTest, nil
@@ -241,13 +240,14 @@ func TestProxyCreate(t *testing.T) {
 	}
 }
 
-func TestProxyCreateLimit(t *testing.T) {
+func TestProxyCreateWithErrors(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
 		expectedResponse string
 		expectedStatus   int
 		testsList        *apisLoadTestV1.LoadTestList
 		error            error
+		listLabeledError error
 	}{
 		{
 			"Limit exceeded",
@@ -263,6 +263,7 @@ func TestProxyCreateLimit(t *testing.T) {
 				},
 			},
 			nil,
+			nil,
 		},
 		{
 			"Can't count tests",
@@ -272,46 +273,72 @@ func TestProxyCreateLimit(t *testing.T) {
 				Items: []apisLoadTestV1.LoadTest{},
 			},
 			errors.New("some error"),
+			nil,
+		},
+		{
+			"Can't count labeled tests",
+			"{\"error\":\"Could not count active load tests with given hash\"}\n",
+			http.StatusInternalServerError,
+			&apisLoadTestV1.LoadTestList{
+				Items: []apisLoadTestV1.LoadTest{},
+			},
+			nil,
+			errors.New("some error on counting labeled tests"),
 		},
 	} {
-		t.Run(tt.name, func(t *testing.T) {})
-		logger := zaptest.NewLogger(t)
-		ctx := mPkg.SetLogger(context.Background(), logger)
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				kubeClientSet     = fake.NewSimpleClientset()
+				loadtestClientSet = fakeClientset.NewSimpleClientset()
+				logger            = zaptest.NewLogger(t)
+			)
+			ctx := mPkg.SetLogger(context.Background(), logger)
 
-		loadtestClientSet.Fake.PrependReactor("create", "loadtests", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-			return true, loadTest, nil
+			var listCalls int
+
+			// we should use PrependReactor to add a new mock in the beginning of the Action list
+			// because by default ReactionChain has '*'/'*' in the beginning of new list
+			loadtestClientSet.Fake.PrependReactor("list", "loadtests", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+				listCalls++
+				// We have 2 calls of (c *loadTests) List in create method.
+				// The first in GetLoadTestsByLabel, the second in CountActiveLoadTests.
+				// For this test we want to skip the first call and always return an empty list.
+				switch listCalls {
+				case 1:
+					return true, &apisLoadTestV1.LoadTestList{}, tt.listLabeledError
+				case 2:
+					return true, tt.testsList, tt.error
+				default:
+					return true, nil, errors.New("unexpected number of calls")
+				}
+			})
+
+			c := kube.NewClient(loadtestClientSet.KangalV1().LoadTests(), kubeClientSet, logger)
+
+			testProxyHandler := NewProxy(1, c)
+			handler := testProxyHandler.Create
+
+			requestWrap, _ := createRequestWrapper(map[string]string{
+				"testFile": "testfile.jmx"}, "2", "Fake")
+
+			req := httptest.NewRequest("POST", "http://example.com/load-test", requestWrap.body)
+			req = req.WithContext(ctx)
+			req.Header.Set("Content-Type", requestWrap.contentType)
+			w := httptest.NewRecorder()
+
+			monkey.Patch(fromHTTPRequestToLoadTestSpec, func(*http.Request, *zap.Logger) (apisLoadTestV1.LoadTestSpec, error) {
+				lt := apisLoadTestV1.LoadTestSpec{}
+				return lt, nil
+			})
+			defer monkey.UnpatchAll()
+			handler(w, req)
+
+			resp := w.Result()
+			respBody, _ := ioutil.ReadAll(resp.Body)
+
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+			assert.Equal(t, tt.expectedResponse, string(respBody))
 		})
-		loadtestClientSet.Fake.PrependReactor("list", "loadtests", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-			return true, nil, nil
-		})
-		loadtestClientSet.Fake.PrependReactor("list", "loadtests", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-			return true, tt.testsList, tt.error
-		})
-		c := kube.NewClient(loadtestClientSet.KangalV1().LoadTests(), kubeClientSet, logger)
-
-		testProxyHandler := NewProxy(1, c)
-		handler := testProxyHandler.Create
-
-		requestWrap, _ := createRequestWrapper(map[string]string{
-			"testFile": "testfile.jmx"}, "2", "Fake")
-
-		req := httptest.NewRequest("POST", "http://example.com/load-test", requestWrap.body)
-		req = req.WithContext(ctx)
-		req.Header.Set("Content-Type", requestWrap.contentType)
-		w := httptest.NewRecorder()
-
-		monkey.Patch(fromHTTPRequestToLoadTestSpec, func(*http.Request, *zap.Logger) (apisLoadTestV1.LoadTestSpec, error) {
-			lt := apisLoadTestV1.LoadTestSpec{}
-			return lt, nil
-		})
-		defer monkey.UnpatchAll()
-		handler(w, req)
-
-		resp := w.Result()
-		respBody, _ := ioutil.ReadAll(resp.Body)
-
-		assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-		assert.Equal(t, tt.expectedResponse, string(respBody))
 	}
 }
 
