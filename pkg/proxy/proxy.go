@@ -81,6 +81,11 @@ func (p *Proxy) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Find the old load test with the same data
 	labeledLoadTests, err := p.kubeClient.GetLoadTestsByLabel(ctx, loadTest)
+	if err != nil {
+		logger.Error("Could not get load tests by label", zap.Error(err))
+		render.Render(w, r, cHttp.ErrResponse(http.StatusInternalServerError, "Failed to get load tests"))
+		return
+	}
 
 	if len(labeledLoadTests.Items) > 0 {
 
