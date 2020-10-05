@@ -123,7 +123,7 @@ func populateCfgFromOpts(cfg controller.Config, opts *controllerCmdOptions) (con
 }
 
 func convertAnnotationToMap(s []string) (map[string]string, error) {
-	m := map[string]string{}
+	m := make(map[string]string)
 	for _, a := range s {
 		// We need to split annotation string to key value map and remove special chars from it:
 		// Before string: iam.amazonaws.com/role: "arn:aws:iam::id:role/some-role"
@@ -131,7 +131,7 @@ func convertAnnotationToMap(s []string) (map[string]string, error) {
 		a = strings.Replace(a, `"`, ``, -1)
 		str := strings.SplitN(a, ":", 2)
 		if len(str) < 2 {
-			return nil, fmt.Errorf(fmt.Sprintf("Annotation %q is invalid", a))
+			return nil, fmt.Errorf("Annotation %q is invalid", a)
 		}
 		key, value := str[0], str[1]
 		m[key] = value

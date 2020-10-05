@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"net/http"
 	"os"
@@ -476,11 +477,14 @@ func TestIntegrationGetLoadtestLogs(t *testing.T) {
 }
 
 func kubeTestClient() clientSetV.Clientset {
-	if len(os.Getenv("KUBECONFIG")) == 0 {
+	if len(os.Getenv(clientcmd.RecommendedConfigPathEnvVar)) == 0 {
 		log.Println("Skipping kube config builder, KUBECONFIG is missed")
 		return clientSetV.Clientset{}
 	}
 	config, err := testhelper.BuildConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	clientSet, err := clientSetV.NewForConfig(config)
 	if err != nil {
