@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	coreV1 "k8s.io/api/core/v1"
@@ -215,14 +217,26 @@ func GetSecret(clientSet typeV1.CoreV1Interface, namespace string) (coreV1.Secre
 	return *secrets, nil
 }
 
-// BuildConfig builds a config from the file
+// BuildConfig from KUBECONFIG env variable or fallback to the default config. Supports KUBECONFIG with
+// multiple files
 func BuildConfig() (*rest.Config, error) {
-	homeDir := os.Getenv("KUBECONFIG")
-	config, err := clientcmd.BuildConfigFromFlags("", homeDir)
-	if err != nil {
-		return nil, err
+	kubeconfigPath := os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
+	if hasMultipleFilesInPath(kubeconfigPath) {
+		return buildConfigFromMultipleFilesInPath()
 	}
-	return config, nil
+
+	return clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+}
+
+// buildConfigFromMultipleFilesInPath from KUBECONFIG
+func buildConfigFromMultipleFilesInPath() (*rest.Config, error) {
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientcmd.NewDefaultClientConfigLoadingRules(),
+		&clientcmd.ConfigOverrides{}).ClientConfig()
+}
+
+func hasMultipleFilesInPath(filePath string) bool {
+	return strings.ContainsRune(filePath, filepath.ListSeparator)
 }
 
 // WaitCondition contains useful functions for watch conditions
