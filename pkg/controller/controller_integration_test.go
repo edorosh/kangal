@@ -12,6 +12,8 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Dependency on jmeter_integration_test by clientSet
+
 func TestIntegrationKangalController(t *testing.T) {
 	// This integration test cover main idea and logic about Kangal controller
 	// First of all it creates new LoadTest resource, then it expects that Kangal Controller created resources

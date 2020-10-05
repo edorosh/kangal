@@ -35,3 +35,4 @@ docker-compose.immutable.yml
 terraform.tfstate.backup
 
 .scannerwork/
+.idea

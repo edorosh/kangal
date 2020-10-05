@@ -35,7 +35,7 @@ func RunServer(ctx context.Context, cfg Config, rr Runner) error {
 	r.Use(middleware.RealIP)
 	r.Use(mPkg.NewLogger(rr.Logger).Handler)
 	r.Use(mPkg.NewRequestLogger().Handler)
-	r.Use(mPkg.Recovery)
+	r.Use(mPkg.Recovery) // does the order matter?
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(OpenAPISpecCORSMiddleware(cfg.OpenAPI))
 
@@ -84,6 +84,7 @@ func RunServer(ctx context.Context, cfg Config, rr Runner) error {
 	rr.Logger.Info("Running HTTP server...", zap.String("address", address))
 
 	// Try and run http server, fail on error
+	// No gracefull shutdown
 	err := http.ListenAndServe(address, &ochttp.Handler{Handler: r})
 	if err != nil {
 		return fmt.Errorf("failed to run HTTP server: %w", err)

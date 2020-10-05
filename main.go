@@ -12,6 +12,7 @@ func main() {
 	rootCmd := cmd.NewRootCmd(version)
 
 	if err := rootCmd.Execute(); err != nil {
+		// There is no way to output logs in JSON format for parsing by logstash
 		log.Fatal(err)
 	}
 }

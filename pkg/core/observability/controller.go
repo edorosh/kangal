@@ -67,6 +67,7 @@ type reporter struct {
 func NewStatsReporter(reconciler string) (StatsReporter, error) {
 	// Reconciler tag is static. Create a context containing that and cache it.
 	ctx, err := tag.New(
+		// it should be given from the Cobra Command
 		context.Background(),
 		tag.Insert(reconcilerTagKey, reconciler))
 	if err != nil {

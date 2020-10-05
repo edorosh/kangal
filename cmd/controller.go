@@ -56,6 +56,7 @@ func NewControllerCmd(ctx context.Context) *cobra.Command {
 				return err
 			}
 
+			// BUG in case of KUBECONFIG with multiple files
 			kubeCfg, err := clientcmd.BuildConfigFromFlags(cfg.MasterURL, cfg.KubeConfig)
 			if err != nil {
 				return fmt.Errorf("error building kubeConfig: %w", err)
@@ -98,6 +99,7 @@ func NewControllerCmd(ctx context.Context) *cobra.Command {
 
 	flags := cmd.PersistentFlags()
 	flags.StringVar(&opts.kubeConfig, "kubeconfig", "", "(optional) Absolute path to the kubeConfig file. Only required if out-of-cluster.")
+	// none of the futher flags are really used
 	flags.StringVar(&opts.masterURL, "master-url", "", "The address of the Kubernetes API server. Overrides any value in kubeConfig. Only required if out-of-cluster.")
 	flags.StringSliceVar(&opts.namespaceAnnotations, "namespace-annotation", []string{}, "annotation will be attached to the loadtest namespace")
 	flags.StringSliceVar(&opts.podAnnotations, "pod-annotation", []string{}, "annotation will be attached to the loadtest pods")
@@ -122,6 +124,7 @@ func populateCfgFromOpts(cfg controller.Config, opts *controllerCmdOptions) (con
 	return cfg, nil
 }
 
+// Not convenient test coverage
 func convertAnnotationToMap(s []string) (map[string]string, error) {
 	m := map[string]string{}
 	for _, a := range s {

@@ -5,6 +5,9 @@ linters:
   disable-all: true
   enable:
     - gofmt
+    # Golint differs from gofmt. Gofmt reformats Go source code, whereas golint 
+    # prints out style mistakes.
+    # What's the point to prints out style mistakes once gofmt has fixed it already?
     - golint
     - goimports
   fast: false

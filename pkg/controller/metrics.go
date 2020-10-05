@@ -33,6 +33,7 @@ func RunMetricsServer(ctx context.Context, cfg Config, rr Runner, stopChan chan 
 	address := fmt.Sprintf(":%d", cfg.HTTPPort)
 	rr.Logger.Info("Running HTTP server...", zap.String("address", address))
 
+	// Not a GO idiomatic approach: owner of the channel is responsible for closing it
 	go func() {
 		// Try and run http server, fail on error
 		if err := http.ListenAndServe(address, &ochttp.Handler{Handler: r}); err != nil {
